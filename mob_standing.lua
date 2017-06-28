@@ -28,11 +28,11 @@ end
 -- this function finds a position next to the bed/bench/.. where the mob can stand.
 -- does a recursive search and may fail to find a position; in that case it will return {iteration == 99}
 -- iteration has to be 0 and vector = {x=0,y=0,z=0} at the beginning
-mob_world_interaction.find_place_next_to = function( pos, iteration, vector)
+mob_world_interaction.find_place_next_to = function( pos, iteration, vector, data)
 
-	local n1 = minetest.get_node( pos );
+	local n1 = mob_world_interaction.get_node( pos, data );
 	-- node where the head of the mob is
-	local n2 = minetest.get_node( {x=pos.x, y=pos.y+1, z=pos.z});
+	local n2 = mob_world_interaction.get_node( {x=pos.x, y=pos.y+1, z=pos.z}, data);
 	-- can the mob stand at this position? then we are finished
 	if(   n1 and not( mob_world_interaction.walkable( n1, 0, 1 ))
 	  and n2 and not( mob_world_interaction.walkable( n2, 1, 1 ))) then
@@ -50,25 +50,25 @@ mob_world_interaction.find_place_next_to = function( pos, iteration, vector)
 
 	-- avoid going backwards and checking places that are already checked or cannot be reached
 	if( vector.x ~= -1 ) then
-		p = mob_world_interaction.find_place_next_to( {x=pos.x+1, y=pos.y, z=pos.z  }, iteration+1, {x= 1,y=0,z= 0});
+		p = mob_world_interaction.find_place_next_to( {x=pos.x+1, y=pos.y, z=pos.z  }, iteration+1, {x= 1,y=0,z= 0}, data);
 		if( p.iteration < p_curr_opt.iteration ) then
 			p_curr_opt = p;
 		end
 	end
 	if( vector.x ~=  1 ) then
-		p = mob_world_interaction.find_place_next_to( {x=pos.x-1, y=pos.y, z=pos.z  }, iteration+1, {x=-1,y=0,z= 0});
+		p = mob_world_interaction.find_place_next_to( {x=pos.x-1, y=pos.y, z=pos.z  }, iteration+1, {x=-1,y=0,z= 0}, data);
 		if( p.iteration < p_curr_opt.iteration ) then
 			p_curr_opt = p;
 		end
 	end
 	if( vector.z ~= -1 ) then
-		p = mob_world_interaction.find_place_next_to( {x=pos.x,   y=pos.y, z=pos.z+1}, iteration+1, {x= 0,y=0,z= 1});
+		p = mob_world_interaction.find_place_next_to( {x=pos.x,   y=pos.y, z=pos.z+1}, iteration+1, {x= 0,y=0,z= 1}, data);
 		if( p.iteration < p_curr_opt.iteration ) then
 			p_curr_opt = p;
 		end
 	end
 	if( vector.z ~=  1 ) then
-		p = mob_world_interaction.find_place_next_to( {x=pos.x,   y=pos.y, z=pos.z-1}, iteration+1, {x= 0,y=0,z=-1});
+		p = mob_world_interaction.find_place_next_to( {x=pos.x,   y=pos.y, z=pos.z-1}, iteration+1, {x= 0,y=0,z=-1}, data);
 		if( p.iteration < p_curr_opt.iteration ) then
 			p_curr_opt = p;
 		end

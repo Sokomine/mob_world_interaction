@@ -33,6 +33,7 @@ current_value
 local openSet = {}
 local closedSet = {}
 
+
 local function get_distance(start_pos, end_pos)
 	local distX = math.abs(start_pos.x - end_pos.x)
 	local distZ = math.abs(start_pos.z - end_pos.z)
@@ -71,10 +72,11 @@ local function climbable(node)
 end
 
 
-local function check_clearance(cpos, x, z, height)
+-- seems to be unused
+local function check_clearance(cpos, x, z, height, data)
 	for i = 1, height do
-		local n_name = minetest.get_node({x = cpos.x + x, y = cpos.y + i, z = cpos.z + z}).name
-		local c_name = minetest.get_node({x = cpos.x, y = cpos.y + i, z = cpos.z}).name
+		local n_name = mob_world_interaction.get_node({x = cpos.x + x, y = cpos.y + i, z = cpos.z + z}, data).name
+		local c_name = mob_world_interaction.get_node({x = cpos.x, y = cpos.y + i, z = cpos.z}, data).name
 		--~ print(i, n_name, c_name)
 		if walkable(n_name, i, height) or walkable(c_name, i, height) then
 			return false
@@ -83,8 +85,8 @@ local function check_clearance(cpos, x, z, height)
 	return true
 end
 
-local function get_neighbor_ground_level(pos, jump_height, fall_height)
-	local node = minetest.get_node(pos)
+local function get_neighbor_ground_level(pos, jump_height, fall_height, data)
+	local node = mob_world_interaction.get_node(pos, data)
 	local height = 0
 	local relevant_height = 0;
 	if walkable(node,1,2) then
@@ -97,7 +99,7 @@ local function get_neighbor_ground_level(pos, jump_height, fall_height)
 				return nil
 			end
 			pos.y = pos.y + 1
-			node = minetest.get_node(pos)
+			node = mob_world_interaction.get_node(pos, data)
 		until not walkable(node,2,2)
 		return pos
 	else
@@ -110,13 +112,13 @@ local function get_neighbor_ground_level(pos, jump_height, fall_height)
 				return nil
 			end
 			pos.y = pos.y - 1
-			node = minetest.get_node(pos)
+			node = mob_world_interaction.get_node(pos, data)
 		until walkable(node,1,2)
 		return {x = pos.x, y = pos.y + 1, z = pos.z}
 	end
 end
 
-function mob_world_interaction.find_path(pos, endpos, entity)
+function mob_world_interaction.find_path(pos, endpos, entity, data)
 	local start_index = minetest.hash_node_position(pos)
 	local target_index = minetest.hash_node_position(endpos)
 	local count = 1
@@ -184,22 +186,22 @@ function mob_world_interaction.find_path(pos, endpos, entity)
 		for z = -1, 1 do
 		for x = -1, 1 do
 			local neighbor_pos = {x = current_pos.x + x, y = current_pos.y, z = current_pos.z + z}
-			local neighbor = minetest.get_node(neighbor_pos)
-			local neighbor_ground_level = get_neighbor_ground_level(neighbor_pos, entity_jump_height, entity_fear_height)
+			local neighbor = mob_world_interaction.get_node(neighbor_pos, data)
+			local neighbor_ground_level = get_neighbor_ground_level(neighbor_pos, entity_jump_height, entity_fear_height, data)
 			local neighbor_clearance = false
 			if neighbor_ground_level then
 				-- print(neighbor_ground_level.y - current_pos.y)
 				-- minetest.set_node(neighbor_ground_level, {name = "default:dry_shrub"})
-				local node_above_head = minetest.get_node(
-						{x = current_pos.x, y = current_pos.y + entity_height, z = current_pos.z})
+				local node_above_head = mob_world_interaction.get_node(
+						{x = current_pos.x, y = current_pos.y + entity_height, z = current_pos.z}, data)
 				if neighbor_ground_level.y - current_pos.y > 0 and not walkable(node_above_head,entity_height,entity_height) then
 					local height = -1
 					repeat
 						height = height + 1
-						local node = minetest.get_node(
+						local node = mob_world_interaction.get_node(
 								{x = neighbor_ground_level.x,
 								y = neighbor_ground_level.y + height,
-								z = neighbor_ground_level.z})
+								z = neighbor_ground_level.z}, data)
 					until walkable(node, entity_height, entity_height) or height > entity_height
 					if height >= entity_height then
 						neighbor_clearance = true
@@ -215,10 +217,10 @@ function mob_world_interaction.find_path(pos, endpos, entity)
 					local height = -1 
 					repeat
 						height = height + 1
-						local node = minetest.get_node(
+						local node = mob_world_interaction.get_node(
 								{x = neighbor_ground_level.x,
 								y = current_pos.y + height,
-								z = neighbor_ground_level.z})
+								z = neighbor_ground_level.z}, data)
 					until walkable(node,2,2) or height > entity_height
 					if height >= entity_height then
 						neighbor_clearance = true

@@ -175,3 +175,127 @@ mob_world_interaction.initialize_door_types = function()
 --		if( mob_world_interaction.door_type[k] ) then print( "permits_passage: "..tostring(k)); end
 	end
 end
+
+
+-- find paths from beds to outside; identify front doors
+-- pos_inside_list usually ought to be building_data.bed_list; it might also contain
+-- positions of benches etc. - as long as those are inside the house, behind the front door
+mob_world_interaction.analyze_building = function( building_data, pos_inside_list )
+	-- will contain for each pos: pos, a position next to it where the mob can stand, and
+	-- a path from where the mob can stand to the front door (if possible)
+	local house_info = {};
+
+	-- position of the front door
+	local front_door_at      = nil;
+	local front_door_next_to = nil;
+	local front_door_count   = 0;
+
+	-- the code only works if positions inside the house (usually beds) are provided
+	if( not( building_data )
+	  or not( building_data.orients )
+	  or not( building_data.orients[1] )
+	  or not( pos_inside_list )
+	  or type(pos_inside_list )~="table"
+	  or #pos_inside_list < 1 ) then
+		return;
+	end
+
+	-- position in front of the house and definitely outside
+	local p_outside = {x=-1, y=building_data.yoff+1, z=-1};
+	if(     building_data.orients[1] == 0 ) then
+		p_outside.x = -1;
+		p_outside.z = math.floor(building_data.sizez + 0.5);
+	elseif( building_data.orients[1] == 1 ) then
+		p_outside.x = math.floor(building_data.sizex + 0.5);
+		p_outside.z = -1;
+	elseif( building_data.orients[1] == 2 ) then
+		p_outside.x = building_data.sizex + 2;
+		p_outside.z = math.floor(building_data.sizez + 0.5);
+	elseif( building_data.orients[1] == 3 ) then
+		p_outside.x = math.floor(building_data.sizex + 0.5);
+		p_outside.z = building_data.sizez + 2;
+	end
+
+	-- find a place next to the position where the mob can stand
+	for i, pos in ipairs( pos_inside_list ) do
+		-- mobs usually cannot stand inside beds or benches
+		local p_stand = mob_world_interaction.find_place_next_to( pos, 0, {x=0,y=0,z=0}, building_data);
+
+		house_info[ i ] = {};
+		house_info[ i ].poi = pos; -- point of intrest for a mob :-) (i.e. a bed)
+		house_info[ i ].next_to = p_stand; -- can be nil if none found
+
+		local str = "  bed at "..minetest.pos_to_string( pos ); -- TODO
+		if(p_stand and p_stand.x ) then
+			str = str..", stand at "..minetest.pos_to_string( p_stand );
+		else
+			str = str.." NO place to stand";
+
+		end
+
+		if( p_stand and p_stand.x ) then
+			---- do the pathfinding in building_data.scm_data_cache
+			local path = mob_world_interaction.find_path( p_stand, p_outside, {collisionbox = {1,0,3,4,2}},building_data);
+			-- sometimes paths fail to be generated and end up beeing of length 1
+			-- we are only intrested in successfully generated paths
+			if( path and #path and #path>1) then
+				str = str..", path length: "..tostring(#path);
+				local last_door_found = nil;
+				local front_door_index = #path-1;
+				for j, path_pos in ipairs( path ) do
+					local node = mob_world_interaction.get_node( path_pos, building_data );
+					if( node and node.name and node.name ~= "air" and node.name ~= "ignore" ) then
+						if( mob_world_interaction.door_type[ node.name ] ) then
+							path_pos.is_door = 1;
+							last_door_found = path_pos;
+							front_door_index = j;
+						-- TODO: handle climbable nodes like ladders
+						end
+					end
+				end
+
+
+				if( last_door_found and last_door_found.x ) then
+					-- first front door found
+					if( not( front_door_at )) then
+						front_door_at      = path[ front_door_index ];
+						front_door_next_to = path[ front_door_index + 1];
+						front_door_count   = 1;
+					-- another front door - consistent with the other ones
+					elseif( front_door_at
+					   and (front_door_at.x == path[ front_door_index ].x
+					     or front_door_at.y == path[ front_door_index ].y
+					     or front_door_at.z == path[ front_door_index ].z
+					     or front_door_next_to.x == path[ front_door_index+1 ].x
+					     or front_door_next_to.y == path[ front_door_index+1 ].y
+					     or front_door_next_to.z == path[ front_door_index+1 ].z )) then
+						front_door_count = front_door_count + 1;
+					else
+						print(" ERROR: DIFFRENT FRONT DOOR FOUND.");
+					end
+					-- store only the relevant parts up to one step in front of the front door
+					house_info[ i ].path = {};
+					for j=1,front_door_index+1 do
+						table.insert( house_info[ i ].path, path[ j ]);
+					end
+					str = str..", front door at "..minetest.pos_to_string( last_door_found ).." "..tostring(front_door_index);
+				else
+					house_info[ i ].path = path;
+					str = str..", NO FRONT DOOR found";
+				end
+			else
+				str = str.." NO PATH FOUND. Outside: "..minetest.pos_to_string(p_outside);
+			end
+			print( str );
+		end -- end of if
+	end -- end of for
+
+	if( front_door_count ~= #pos_inside_list ) then
+		front_door_at = nil;
+		front_door_next_to = nil;
+		print( "      <<< NO COMMON FRONT DOOR FOUND >>>");
+	else
+		print( "  --> success: front door found <--");
+	end
+	return { house_info = house_info, front_door_at = front_door_at, front_door_next_to = front_door_next_to };
+end
