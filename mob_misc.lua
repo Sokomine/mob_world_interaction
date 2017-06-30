@@ -26,18 +26,17 @@ mob_world_interaction.get_node = function( pos, data )
 	if( data and pos and pos.x) then
 		-- the data is stored in the way handle_schematic stores it internally
 		if( data.scm_data_cache and data.nodenames ) then
-			-- the node is contained in the provided data
+			-- the node is contained in the provided data and is not air
 			if(   data.scm_data_cache[ pos.y ]
 			  and data.scm_data_cache[ pos.y ][ pos.x ]
 			  and data.scm_data_cache[ pos.y ][ pos.x ][ pos.z ]) then
 				local t = data.scm_data_cache[ pos.y ][ pos.x ][ pos.z ];
 				return { name = data.nodenames[ t[1] ], param2 = t[2] };
-			end
 
 			-- for nodes outside the defined volume we make the following assumptions:
 			-- the building is sourrounded by flat space; thus, only pos.y (height) counts
-			if( (not( data.yoff ) and pos.y <= 0 )
-			  or pos.y <= data.yoff ) then
+			elseif( (not( data.yoff ) and pos.y <= 1 )
+			  or pos.y <= (data.yoff*-1)+1 ) then
 				-- something virtual on which the mob can walk
 				return { name = "default:dirt_with_grass", param2 = 0};
 			else

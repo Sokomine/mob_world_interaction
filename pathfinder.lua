@@ -64,7 +64,7 @@ local function walkable(node, curr_height, max_height )
 	return minetest.registered_nodes[node.name].walkable
 end
 
-local function climbable(node)
+mob_world_interaction.climbable = function(node)
 	if( not( node ) or not( node.name ) or not( minetest.registered_nodes[ node.name ])) then
 		return false;
 	end
@@ -92,7 +92,7 @@ local function get_neighbor_ground_level(pos, jump_height, fall_height, data)
 	if walkable(node,1,2) then
 		repeat
 			height = height + 1
-			if( not( climbable(node ))) then
+			if( not( mob_world_interaction.climbable(node ))) then
 				relevant_height = relevant_height + 1;
 			end
 			if relevant_height > jump_height then
@@ -105,7 +105,7 @@ local function get_neighbor_ground_level(pos, jump_height, fall_height, data)
 	else
 		repeat
 			height = height + 1
-			if( not( climbable(node ))) then
+			if( not( mob_world_interaction.climbable(node ))) then
 				relevant_height = relevant_height + 1;
 			end
 			if relevant_height > fall_height then

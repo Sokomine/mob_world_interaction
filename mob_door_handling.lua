@@ -7,9 +7,12 @@
 -- those allow the mob to walk below and on them and still get through
 --
 mob_world_interaction.walkable = function(node, curr_height, max_height)
-	if( not( node ) or not( node.name ) or not( minetest.registered_nodes[node.name])) then
+	if( not( node ) or not( node.name )) then
 		return true;
-	elseif( mob_world_interaction.door_type[ node.name ]=="thin_slab" ) then
+	-- fast decision for air
+	elseif( node.name == "air" ) then
+		return false;
+	elseif( mob_world_interaction.door_type[ node.name ] and mob_world_interaction.door_type[ node.name ]=="thin_slab" ) then
 		--print( "CHECKING node="..tostring(node.name).." param2="..tostring(node.param2).." for curr="..tostring(curr_height).." max="..tostring(max_height));
 		-- thin slabs acting as floors are ok
 		if( node.param2 and node.param2 < 4 and curr_height==1 ) then
@@ -23,6 +26,8 @@ mob_world_interaction.walkable = function(node, curr_height, max_height)
 		end
 	elseif( mob_world_interaction.door_type[ node.name ]) then
 		return false;
+	elseif( not( minetest.registered_nodes[node.name])) then
+		return true;
 	else
 		return minetest.registered_nodes[node.name].walkable;
 	end
@@ -97,6 +102,27 @@ end
 mob_world_interaction.initialize_door_types = function()
 	-- the table where we store the data
 	mob_world_interaction.door_type = {};
+
+	-- some schematics may still work with old door types
+	mob_world_interaction.door_type[ 'doors:door_wood_t_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_wood_t_2' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_wood_b_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_wood_b_2' ] = "door_a_b";
+
+	mob_world_interaction.door_type[ 'doors:door_steel_t_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_steel_t_2' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_steel_b_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_steel_b_2' ] = "door_a_b";
+
+	mob_world_interaction.door_type[ 'doors:door_glass_t_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_glass_t_2' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_glass_b_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_glass_b_2' ] = "door_a_b";
+
+	mob_world_interaction.door_type[ 'doors:door_obsidian_glass_t_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_obsidian_glass_t_2' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_obsidian_glass_b_1' ] = "door_a_b";
+	mob_world_interaction.door_type[ 'doors:door_obsidian_glass_b_2' ] = "door_a_b";
 
 	for k,v in pairs( minetest.registered_nodes ) do
 		if( string.sub( k, 1, 6)=="doors:" ) then
@@ -201,21 +227,29 @@ mob_world_interaction.analyze_building = function( building_data, pos_inside_lis
 	end
 
 	-- position in front of the house and definitely outside
-	local p_outside = {x=-1, y=building_data.yoff+1, z=-1};
+	local p_outside = {x=-1, y=(building_data.yoff*-1)+2, z=-1};
 	if(     building_data.orients[1] == 0 ) then
-		p_outside.x = -1;
-		p_outside.z = math.floor(building_data.sizez + 0.5);
+		p_outside.x = 0;
+		p_outside.z = math.floor(building_data.sizez/2 + 0.5);
 	elseif( building_data.orients[1] == 1 ) then
-		p_outside.x = math.floor(building_data.sizex + 0.5);
-		p_outside.z = -1;
+		p_outside.x = math.floor(building_data.sizex/2 + 0.5);
+		p_outside.z = 0;
 	elseif( building_data.orients[1] == 2 ) then
-		p_outside.x = building_data.sizex + 2;
-		p_outside.z = math.floor(building_data.sizez + 0.5);
+		p_outside.x = building_data.sizex + 1;
+		p_outside.z = math.floor(building_data.sizez/2 + 0.5);
 	elseif( building_data.orients[1] == 3 ) then
-		p_outside.x = math.floor(building_data.sizex + 0.5);
-		p_outside.z = building_data.sizez + 2;
+		p_outside.x = math.floor(building_data.sizex/2 + 0.5);
+		p_outside.z = building_data.sizez + 1;
 	end
 
+	-- check if the (simulated) nodes outside building_data.scm_data_cache are correct
+	local n_out_1 = mob_world_interaction.get_node( p_outside, building_data );
+	local n_out_0 = mob_world_interaction.get_node( {x=p_outside.x, y=p_outside.y-1, z=p_outside.z}, building_data );
+	if( not( n_out_1 ) or not( n_out_0 ) or n_out_1.name ~= "air" or n_out_0.name ~= "default:dirt_with_grass" ) then
+		print("ERROR: Nodes outside data area broken: at "..minetest.pos_to_string( p_outside ).." is "..minetest.serialize( n_out ).." (expected: air); below: "..minetest.serialize(n_below).." (expected: default:dirt_with_grass)");
+	end
+
+	local str = "";
 	-- find a place next to the position where the mob can stand
 	for i, pos in ipairs( pos_inside_list ) do
 		-- mobs usually cannot stand inside beds or benches
@@ -225,7 +259,7 @@ mob_world_interaction.analyze_building = function( building_data, pos_inside_lis
 		house_info[ i ].poi = pos; -- point of intrest for a mob :-) (i.e. a bed)
 		house_info[ i ].next_to = p_stand; -- can be nil if none found
 
-		local str = "  bed at "..minetest.pos_to_string( pos ); -- TODO
+		str = str.."\n  bed at "..minetest.pos_to_string( pos ); -- TODO
 		if(p_stand and p_stand.x ) then
 			str = str..", stand at "..minetest.pos_to_string( p_stand );
 		else
@@ -286,16 +320,15 @@ mob_world_interaction.analyze_building = function( building_data, pos_inside_lis
 			else
 				str = str.." NO PATH FOUND. Outside: "..minetest.pos_to_string(p_outside);
 			end
-			print( str );
 		end -- end of if
 	end -- end of for
 
 	if( front_door_count ~= #pos_inside_list ) then
 		front_door_at = nil;
 		front_door_next_to = nil;
-		print( "      <<< NO COMMON FRONT DOOR FOUND >>>");
+		print( str.."\n      <<< NO COMMON FRONT DOOR FOUND >>>");
 	else
-		print( "  --> success: front door found <--");
+		print( "  --> success: front door found at "..minetest.pos_to_string(front_door_at).." <--");
 	end
 	return { house_info = house_info, front_door_at = front_door_at, front_door_next_to = front_door_next_to };
 end
