@@ -41,9 +41,9 @@ mob_world_interaction.find_place_next_to = function( pos, iteration, vector, dat
 	local n0 = mob_world_interaction.get_node( {x=pos.x, y=pos.y-1, z=pos.z}, data);
 	--print("standing: "..minetest.pos_to_string( pos ).." nodes: "..tostring( n0.name).." "..tostring(n1.name).." "..tostring(n2.name));
 	-- can the mob stand at this position? then we are finished
-	if(   n1 and not( mob_world_interaction.walkable( n1, 0, 1 )) -- free space for feet
-	  and n2 and not( mob_world_interaction.walkable( n2, 1, 1 )) -- free space for head
-	  and n0 and    ( mob_world_interaction.walkable( n0, 0, 1 )  -- ground for feet to stand on
+	if(   n1 and not( mob_world_interaction.walkable( n1, 1, 2 )) -- free space for feet
+	  and n2 and not( mob_world_interaction.walkable( n2, 2, 2 )) -- free space for head
+	  and n0 and    ( mob_world_interaction.walkable( n0, 1, 2 )  -- ground for feet to stand on
 	               or mob_world_interaction.climbable( n0 ))) then -- or a ladder
 		--print("found!");
 		return {x=pos.x, y=pos.y, z =pos.z, iteration=iteration};
