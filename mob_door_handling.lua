@@ -15,7 +15,7 @@ mob_world_interaction.walkable = function(node, curr_height, max_height)
 	elseif( mob_world_interaction.door_type[ node.name ] and mob_world_interaction.door_type[ node.name ]=="thin_slab" ) then
 		--print( "CHECKING node="..tostring(node.name).." param2="..tostring(node.param2).." for curr="..tostring(curr_height).." max="..tostring(max_height));
 		-- thin slabs acting as floors are ok
-		if( node.param2 and node.param2 < 4 and curr_height==1 ) then
+		if( node.param2 and node.param2 < 4 and curr_height<=1 ) then
 			return false;
 		-- thin slabs acting as ceiling at the head position are ok as well
 		elseif( node.param2 and node.param2 > 19 and max_height>1 and curr_height==max_height) then
@@ -174,6 +174,7 @@ mob_world_interaction.initialize_door_types = function()
 	
 		elseif( v and v.drawtype and v.drawtype == 'nodebox' and v.node_box
 		      and v.node_box.type and v.node_box.type=='fixed'
+		      and v.walkable==true
 		      and v.node_box.fixed ) then
 
 			local nb = v.node_box.fixed;
@@ -279,7 +280,10 @@ mob_world_interaction.analyze_building = function( building_data, pos_inside_lis
 				for j, path_pos in ipairs( path ) do
 					local node = mob_world_interaction.get_node( path_pos, building_data );
 					if( node and node.name and node.name ~= "air" and node.name ~= "ignore" ) then
-						if( mob_world_interaction.door_type[ node.name ] ) then
+						if( mob_world_interaction.door_type[ node.name ]
+						  -- some tents use sleeping mats as doors
+						  or (node.name == "cottages:sleeping_mat" and node.param2>3 and node.param2<20)) then
+if( node.name=="cottages:sleeping_mat") then print( "sleeping mat as door found."); end
 							path_pos.is_door = 1;
 							last_door_found = path_pos;
 							front_door_index = j;
