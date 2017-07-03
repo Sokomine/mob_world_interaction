@@ -208,14 +208,22 @@ end
 -- pos_inside_list usually ought to be building_data.bed_list; it might also contain
 -- positions of benches etc. - as long as those are inside the house, behind the front door
 mob_world_interaction.find_nearest_front_door = function( building_data, pos_inside_list )
-	-- will contain for each pos: pos, a position next to it where the mob can stand, and
-	-- a path from where the mob can stand to the front door (if possible)
-	local house_info = {};
+	-- will contain for each element pos of pos_inside_list: a list ({x,y,z,is_door}) that forms a path;
+	--   with pos beeing the first element of the path
+	--   with a position to stand next to pos as the second element of the path
+	--   followed by the rest of the path up until one position in front of the door
+	-- Note: The last (additional) element of the list does not contain path from pos to front_door_next_to
+	--   but rather the rest of the path from front_door_next_to to p_outside
+	-- the elements are stored as {x,y,z,is_door} instead of {x=x,y=y,z=z,is_door=1} in order to save space
+	-- on disk in the savefile
+	local path_lists = {};
 
 	-- position of the front door
 	local front_door_at      = nil;
 	local front_door_next_to = nil;
 	local front_door_count   = 0;
+	-- path from front_door_next_to to p_outside
+	local path_rest = {};
 
 	-- the code only works if positions inside the house (usually beds) are provided
 	if( not( building_data )
@@ -256,9 +264,8 @@ mob_world_interaction.find_nearest_front_door = function( building_data, pos_ins
 		-- mobs usually cannot stand inside beds or benches
 		local p_stand = mob_world_interaction.find_place_next_to( pos, 0, {x=0,y=0,z=0}, building_data);
 
-		house_info[ i ] = {};
-		house_info[ i ].poi = pos; -- point of intrest for a mob :-) (i.e. a bed)
-		house_info[ i ].next_to = p_stand; -- can be nil if none found
+		-- for each position: table with paths from position to all front doors
+		path_lists[ i ] = {};
 
 		str = str.."\n  bed at "..minetest.pos_to_string( pos ); -- TODO
 		if(p_stand and p_stand.x ) then
@@ -283,7 +290,6 @@ mob_world_interaction.find_nearest_front_door = function( building_data, pos_ins
 						if( mob_world_interaction.door_type[ node.name ]
 						  -- some tents use sleeping mats as doors
 						  or (node.name == "cottages:sleeping_mat" and node.param2>3 and node.param2<20)) then
-if( node.name=="cottages:sleeping_mat") then print( "sleeping mat as door found."); end
 							path_pos.is_door = 1;
 							last_door_found = path_pos;
 							front_door_index = j;
@@ -311,15 +317,31 @@ if( node.name=="cottages:sleeping_mat") then print( "sleeping mat as door found.
 					else
 						print(" ERROR: DIFFRENT FRONT DOOR FOUND.");
 					end
-					-- store only the relevant parts up to one step in front of the front door
-					house_info[ i ].path = {};
-					for j=1,front_door_index+1 do
-						table.insert( house_info[ i ].path, path[ j ]);
-					end
 					str = str..", front door at "..minetest.pos_to_string( last_door_found ).." "..tostring(front_door_index);
 				else
-					house_info[ i ].path = path;
+					-- store the whole path
+					front_door_index = #path-1;
 					str = str..", NO FRONT DOOR found";
+				end
+
+				-- store only the relevant parts up to one step in front of the front door
+				path_lists[ i ] = {};
+				-- store the position of the bed as first element of the path
+				-- the last "2" indicates "is bed"
+				path_lists[ i ][ 1 ] = {pos.x, pos.y, pos.z, 2 };
+				for j=1,math.min(#path, front_door_index+1) do
+					local is_door = 0;
+					if( path[j].is_door ) then
+						is_door = 1;
+					end
+					table.insert( path_lists[ i ], {path[j].x, path[j].y, path[j].z, is_door });
+				end
+				-- store the rest of the path
+				if( #path_rest < 1 and #path>front_door_index+1) then
+					for j=math.min(#path, front_door_index+1), #path do
+						-- there can be no more doors here
+						table.insert( path_rest, {path[j].x, path[j].y, path[j].z, 0 });
+					end
 				end
 			else
 				str = str.." NO PATH FOUND. Outside: "..minetest.pos_to_string(p_outside);
@@ -334,11 +356,10 @@ if( node.name=="cottages:sleeping_mat") then print( "sleeping mat as door found.
 	else
 		print( "  --> success: front door found at "..minetest.pos_to_string(front_door_at).." <--");
 	end
-	-- TODO: further data that might be of intrest: p_outside, common path from front_door_at to p_outside
-	-- TODO: re-use calculated positions of house_info.next_to as they are always the same for each poi
-	-- TODO: store front doors and paths in a list, i.e. {bed=p1, next_to=p2, paths={to_door_1, to_door_2, ..}
-	-- TODO: generate a list of front doors by adding the new one to the existing list
-	return { house_info = house_info, front_door_at = front_door_at, front_door_next_to = front_door_next_to };
+
+	-- store the rest of the path as the last (additional) entry
+	table.insert( path_lists, path_rest );
+	return { path_lists = path_lists, front_door_at = front_door_at, front_door_next_to = front_door_next_to };
 end
 
 
@@ -355,6 +376,7 @@ mob_world_interaction.find_all_front_doors = function( building_data, pos_inside
 	end
 
 	local all_path_info = {};
+	local all_front_doors = {};
 
 	-- now try to find the first and nearest front door
 	local path_info = mob_world_interaction.find_nearest_front_door( building_data, pos_inside_list );
@@ -366,11 +388,14 @@ mob_world_interaction.find_all_front_doors = function( building_data, pos_inside
 	-- if we found a front door
 	while( path_info and path_info.front_door_at and path_info.front_door_at.x) do
 
+		-- store the path info
+		table.insert( all_path_info, path_info.path_lists );
+
 		local d = path_info.front_door_at;
 		-- store the node type (relative to nodenames) of the door node
-		path_info.door_node = building_data.scm_data_cache[ d.y ][ d.x ][ d.z ][1];
-		-- store the path info
-		table.insert( all_path_info, path_info );
+		path_info.front_door_at.node_id = building_data.scm_data_cache[ d.y ][ d.x ][ d.z ][1];
+		-- store the position of all front doors in extra list
+		table.insert( all_front_doors, path_info.front_door_at );
 
 		-- place a nonexisting block where that door was
 		building_data.scm_data_cache[ d.y ][ d.x ][ d.z ][1] = #building_data.nodenames;
@@ -382,11 +407,11 @@ mob_world_interaction.find_all_front_doors = function( building_data, pos_inside
 	print( "  "..tostring( #all_path_info ).." front doors found. orients: "..tostring( building_data.orients[1] ).." yoff: "..tostring( building_data.yoff).. " ground: "..tostring( (building_data.yoff*-1)+1 ).."\n");
 
 	-- place the doors back
-	for i,path_info in ipairs( all_path_info ) do
-		if( path_info and path_info.front_door_at ) then
-			local d = path_info.front_door_at;
+	for i,front_door in ipairs( all_front_doors ) do
+		if( front_door ) then
+			local d = front_door;
 			-- place the original door back
-			building_data.scm_data_cache[ d.y ][ d.x ][ d.z ][1] = path_info.door_node;
+			building_data.scm_data_cache[ d.y ][ d.x ][ d.z ][1] = d.node_id;
 		end
 	end
 
