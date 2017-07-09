@@ -125,7 +125,7 @@ mob_world_interaction.stand_at = function( entity, pos, yaw )
 		entity.object:setyaw( math.rad( yaw ));
 	end
 	-- move to the stand position
-	entity.object:setpos( {x=pos.x, y=pos.y+1.1,z=pos.z} );
+	entity.object:setpos( {x=pos.x, y=pos.y+0.55,z=pos.z} );
 
 	mob_world_interaction.set_animation( entity, 'stand' );
 
