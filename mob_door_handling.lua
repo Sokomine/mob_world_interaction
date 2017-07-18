@@ -60,8 +60,11 @@ mob_world_interaction.open_door = function( entity, pos, target )
 			entity._door_pos = pos;
 		end
 
+	-- TODO: trapdoor_param2 may need special handling depending on param2 as well
+	-- TODO: it gets more complicated if the trapdoor is at the head position..
+
 	-- open a closed gate or trapdoor; gates have a diffrent node type for open and closed
-	elseif( door_type == "gate_closed" or door_type == "trapdoor_closed") then
+	elseif( door_type == "gate_closed" or door_type == "trapdoor_closed" or door_type=='trapdoor_param2') then
 		minetest.registered_nodes[node.name].on_rightclick(pos,node,nil)
 		-- TODO: really store the gate position seperate from the door pos?
 		entity._gate_pos = pos;
@@ -166,6 +169,12 @@ mob_world_interaction.initialize_door_types = function()
 		elseif( k == "cottages:gate_open") then
 			mob_world_interaction.door_type[ k ] = "gate_open";
 	
+		-- hatches from the cottages mod define their stage by param2
+		elseif( k == "cottages:hatch_wood" ) then
+			mob_world_interaction.door_type[ k ] = "trapdoor_param2";
+		elseif( k == "cottages:hatch_steel" ) then
+			mob_world_interaction.door_type[ k ] = "trapdoor_param2";
+
 		-- gates from the gates_long mod
 		elseif( string.sub( k, 1, 29 ) == "gates_long:fence_gate_closed_") then
 			mob_world_interaction.door_type[ k ] = "gate_closed";
@@ -388,6 +397,11 @@ mob_world_interaction.find_all_front_doors = function( building_data, pos_inside
 	-- add a node that is undefined and just acts as a placeholder to the list of nodenames used by building_data
 	-- (it will be removed at the end of this function call)
 	table.insert( building_data.nodenames, "default:does_not_exist" );
+
+	-- no common front door found
+	if( path_info and (not( path_info.front_door_at ) or not( path_info.front_door_at.x ))) then
+		return {path_info.path_lists};
+	end
 
 	-- if we found a front door
 	while( path_info and path_info.front_door_at and path_info.front_door_at.x) do
