@@ -138,10 +138,10 @@ mob_world_interaction.stand_at = function( entity, pos, yaw )
 	end
 	-- rotate the npc in the right direction
 	if( yaw ) then
-		entity.object:setyaw( math.rad( yaw ));
+		entity.object:set_yaw( math.rad( yaw ));
 	end
 	-- move to the stand position
-	entity.object:setpos( {x=pos.x, y=pos.y+0.55,z=pos.z} );
+	entity.object:set_pos( {x=pos.x, y=pos.y+0.55,z=pos.z} );
 
 	mob_world_interaction.set_animation( entity, 'stand' );
 
